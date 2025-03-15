@@ -18,6 +18,10 @@ interface SearchNumbersResponse {
  */
 export const searchNumbers = async (data: SearchNumbersRequest): Promise<SearchNumbersResponse> => {
   try {
+    // For very large arrays, consider sending in batches if needed
+    // But for now we'll just send the whole array as JSON
+    
+    // Use a more efficient fetch with proper error handling
     const response = await fetch('/api/search-numbers', {
       method: 'POST',
       headers: {
@@ -28,7 +32,7 @@ export const searchNumbers = async (data: SearchNumbersRequest): Promise<SearchN
     
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'An error occurred');
+      throw new Error(errorData.error || `Server error: ${response.status}`);
     }
     
     return await response.json();

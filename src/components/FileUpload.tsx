@@ -2,7 +2,8 @@
 import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { ArrowUpFromLine, FileIcon, X } from "lucide-react";
+import { ArrowUpFromLine, FileIcon, X, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface FileUploadProps {
   onFileProcessed: (numbers: string[]) => void;
@@ -13,6 +14,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed, extractNumbers
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -51,9 +53,34 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed, extractNumbers
 
     setFile(selectedFile);
     setIsProcessing(true);
+    setProgress(0);
+
+    // For large files, show progress indicator
+    const isLargeFile = selectedFile.size > 10 * 1024 * 1024;
+    
+    if (isLargeFile) {
+      // Simulate progress for large files since actual chunking progress is hard to track precisely
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 300);
+      
+      // Clear interval when component unmounts
+      return () => clearInterval(progressInterval);
+    }
 
     try {
       const numbers = await extractNumbers(selectedFile);
+      
+      if (isLargeFile) {
+        setProgress(100);
+      }
+      
       onFileProcessed(numbers);
       toast({
         title: "File processed successfully",
@@ -72,6 +99,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed, extractNumbers
 
   const removeFile = () => {
     setFile(null);
+    setProgress(0);
     onFileProcessed([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -81,6 +109,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed, extractNumbers
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
+
+  const isLargeFile = file && file.size > 10 * 1024 * 1024;
 
   return (
     <div className="mb-6 w-full">
@@ -129,7 +159,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed, extractNumbers
               <div className="truncate">
                 <p className="font-medium truncate">{file.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {(file.size / 1024).toFixed(2)} KB
+                  {isLargeFile 
+                    ? `${(file.size / (1024 * 1024)).toFixed(2)} MB (Large file)` 
+                    : `${(file.size / 1024).toFixed(2)} KB`}
                 </p>
               </div>
             </div>
@@ -145,11 +177,21 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileProcessed, extractNumbers
           </div>
           
           {isProcessing && (
-            <div className="mt-2">
-              <div className="h-1 w-full overflow-hidden bg-muted rounded-full">
-                <div className="h-full bg-primary animate-pulse-subtle rounded-full"></div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Processing file...</p>
+            <div className="mt-3">
+              {isLargeFile ? (
+                <>
+                  <Progress value={progress} className="h-1 w-full" />
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-muted-foreground">Processing large file in chunks...</p>
+                    <p className="text-xs font-medium">{progress}%</p>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center space-x-2 mt-1">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <p className="text-xs text-muted-foreground">Processing file...</p>
+                </div>
+              )}
             </div>
           )}
         </div>
