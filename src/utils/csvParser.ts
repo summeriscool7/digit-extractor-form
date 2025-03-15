@@ -6,8 +6,8 @@
  */
 export const extractNumbersFromCSV = (file: File): Promise<string[]> => {
   return new Promise((resolve, reject) => {
-    // For very large files (over 10MB), use chunking
-    const useChunking = file.size > 10 * 1024 * 1024;
+    // Always use chunking for files over 2MB
+    const useChunking = file.size > 2 * 1024 * 1024;
     const numbersArray: string[] = [];
     const tenDigitNumberRegex = /^[6-9]\d{9}$/;
     
@@ -16,6 +16,7 @@ export const extractNumbersFromCSV = (file: File): Promise<string[]> => {
       const chunkSize = 2 * 1024 * 1024; // 2MB chunks
       let offset = 0;
       let processNextChunk = true;
+      let lastPartialRow = '';
       
       // Process the file in chunks
       const processChunk = () => {
@@ -29,8 +30,21 @@ export const extractNumbersFromCSV = (file: File): Promise<string[]> => {
             return;
           }
           
-          // Process the chunk
-          const rows = chunk.split(/[\r\n,\t ]+/);
+          // Process the chunk with handling for partial rows
+          let chunkContent = lastPartialRow + chunk;
+          
+          // Check if the chunk ends with a complete row
+          const lastNewlineIndex = chunkContent.lastIndexOf('\n');
+          if (lastNewlineIndex !== -1 && lastNewlineIndex < chunkContent.length - 1) {
+            // Save partial row for next chunk
+            lastPartialRow = chunkContent.substring(lastNewlineIndex + 1);
+            chunkContent = chunkContent.substring(0, lastNewlineIndex);
+          } else {
+            lastPartialRow = '';
+          }
+          
+          // Split by common delimiters (comma, line break, tab, space)
+          const rows = chunkContent.split(/[\r\n,\t ]+/);
           
           // Extract valid numbers from this chunk
           for (const item of rows) {
@@ -43,8 +57,16 @@ export const extractNumbersFromCSV = (file: File): Promise<string[]> => {
           // Move to next chunk if we haven't reached the end of file
           offset += chunkSize;
           if (offset < file.size && processNextChunk) {
-            processChunk();
+            // Use setTimeout to avoid blocking the main thread
+            setTimeout(processChunk, 0);
           } else {
+            // Process the last partial row if any
+            if (lastPartialRow) {
+              const trimmed = lastPartialRow.trim();
+              if (tenDigitNumberRegex.test(trimmed)) {
+                numbersArray.push(trimmed);
+              }
+            }
             resolve(numbersArray);
           }
         };
