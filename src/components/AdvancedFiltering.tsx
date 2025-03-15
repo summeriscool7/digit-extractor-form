@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,8 @@ import {
   Trash2,
   PlusCircle,
   MinusCircle,
+  Superscript,
+  MousePointerSquare,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -56,6 +59,15 @@ const patternTypes = [
   { id: "ending", label: "Ending with", example: "xxx0000" },
   { id: "penta", label: "Penta", example: "Five same digits" },
   { id: "hexa", label: "Hexa", example: "Six same digits" },
+  { id: "tetra", label: "Tetra", example: "Four same digits" },
+];
+
+// Special number types
+const specialNumberTypes = [
+  { id: "fancy", label: "Fancy", description: "Special combinations like 786xxx, 111x" },
+  { id: "xy", label: "XY Pattern", description: "Numbers following AB-AB-AB pattern" },
+  { id: "rising", label: "Rising", description: "Digits increasing throughout" },
+  { id: "falling", label: "Falling", description: "Digits decreasing throughout" },
 ];
 
 // Function to check if a number is mirrored (palindrome)
@@ -90,6 +102,50 @@ const isSequential = (num: string, length = 4): boolean => {
   return false;
 };
 
+// Function to check if a number follows XY pattern (like 121212, 787878)
+const hasXYPattern = (num: string): boolean => {
+  if (num.length < 6) return false;
+  
+  // Check for patterns like ABABAB or ABCABC
+  for (let patternLength = 2; patternLength <= 3; patternLength++) {
+    if (num.length % patternLength !== 0) continue;
+    
+    const pattern = num.substring(0, patternLength);
+    let isXY = true;
+    
+    for (let i = patternLength; i < num.length; i += patternLength) {
+      if (num.substring(i, i + patternLength) !== pattern) {
+        isXY = false;
+        break;
+      }
+    }
+    
+    if (isXY) return true;
+  }
+  
+  return false;
+};
+
+// Function to check if digits are consistently rising
+const hasRisingDigits = (num: string): boolean => {
+  for (let i = 1; i < num.length; i++) {
+    if (parseInt(num[i]) <= parseInt(num[i-1])) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// Function to check if digits are consistently falling
+const hasFallingDigits = (num: string): boolean => {
+  for (let i = 1; i < num.length; i++) {
+    if (parseInt(num[i]) >= parseInt(num[i-1])) {
+      return false;
+    }
+  }
+  return true;
+};
+
 // Function to check if a number ends with a specific pattern
 const endsWithPattern = (num: string, pattern: string): boolean => {
   return num.endsWith(pattern);
@@ -110,6 +166,21 @@ const calculateSingleDigitSum = (num: string): number => {
       .reduce((s, d) => s + parseInt(d), 0);
   }
   return sum;
+};
+
+// Function to check if a number is fancy (special combinations)
+const isFancyNumber = (num: string): boolean => {
+  // Common fancy patterns in Indian context
+  if (num.startsWith("786")) return true;  // Considered lucky
+  if (num.includes("111") || num.includes("222") || num.includes("333")) return true;
+  if (num.includes("555") || num.includes("777") || num.includes("888") || num.includes("999")) return true;
+  
+  // Check for consecutive pairs
+  for (let i = 0; i < num.length - 3; i++) {
+    if (num[i] === num[i+1] && num[i+2] === num[i+3]) return true;
+  }
+  
+  return false;
 };
 
 // Function to check digit preferences (contains/doesn't contain specific digits)
@@ -140,8 +211,8 @@ const AdvancedFiltering: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPattern, setSelectedPattern] = useState("mirror");
   const [endingPattern, setEndingPattern] = useState("0000");
-  const [minDigitSum, setMinDigitSum] = useState(0);
-  const [maxDigitSum, setMaxDigitSum] = useState(100);
+  const [exactDigitSum, setExactDigitSum] = useState("");
+  const [selectedSpecialType, setSelectedSpecialType] = useState("fancy");
   const [useSingleDigitSum, setUseSingleDigitSum] = useState(false);
   const [luckyDigits, setLuckyDigits] = useState<string[]>([]);
   const [unluckyDigits, setUnluckyDigits] = useState<string[]>([]);
@@ -227,19 +298,29 @@ const AdvancedFiltering: React.FC = () => {
           if (selectedPattern === "ending" && !endsWithPattern(number, endingPattern)) return false;
           if (selectedPattern === "penta" && !hasRepeatingSequence(number, 5)) return false;
           if (selectedPattern === "hexa" && !hasRepeatingSequence(number, 6)) return false;
+          if (selectedPattern === "tetra" && !hasRepeatingSequence(number, 4)) return false;
         }
 
-        // Apply digit sum filter
-        if (activeFilters.includes("sum")) {
+        // Apply digit sum filter - Now using exact digit sum
+        if (activeFilters.includes("sum") && exactDigitSum) {
+          const targetSum = parseInt(exactDigitSum);
           const sum = useSingleDigitSum
             ? calculateSingleDigitSum(number)
             : calculateDigitSum(number);
-          if (sum < minDigitSum || sum > maxDigitSum) return false;
+          if (sum !== targetSum) return false;
         }
 
         // Apply digit preferences
         if (activeFilters.includes("preference")) {
           if (!matchesDigitPreferences(number, luckyDigits, unluckyDigits)) return false;
+        }
+        
+        // Apply special filters
+        if (activeFilters.includes("special")) {
+          if (selectedSpecialType === "fancy" && !isFancyNumber(number)) return false;
+          if (selectedSpecialType === "xy" && !hasXYPattern(number)) return false;
+          if (selectedSpecialType === "rising" && !hasRisingDigits(number)) return false;
+          if (selectedSpecialType === "falling" && !hasFallingDigits(number)) return false;
         }
 
         return true;
@@ -272,8 +353,8 @@ const AdvancedFiltering: React.FC = () => {
     searchQuery,
     selectedPattern,
     endingPattern,
-    minDigitSum,
-    maxDigitSum,
+    exactDigitSum,
+    selectedSpecialType,
     useSingleDigitSum,
     luckyDigits,
     unluckyDigits,
@@ -289,8 +370,15 @@ const AdvancedFiltering: React.FC = () => {
       return;
     }
 
-    const csvContent = "data:text/csv;charset=utf-8," + filteredNumbers.join("\n");
-    const encodedUri = encodeURI(csvContent);
+    // Create CSV content with digit sums
+    let csvContent = "Number,Digit Sum,Single Digit Sum\n";
+    filteredNumbers.forEach(number => {
+      const digitSum = calculateDigitSum(number);
+      const singleDigitSum = calculateSingleDigitSum(number);
+      csvContent += `${number},${digitSum},${singleDigitSum}\n`;
+    });
+
+    const encodedUri = encodeURI("data:text/csv;charset=utf-8," + csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "filtered_numbers.csv");
@@ -300,7 +388,7 @@ const AdvancedFiltering: React.FC = () => {
 
     toast({
       title: "Download Started",
-      description: `Downloading ${filteredNumbers.length} numbers`,
+      description: `Downloading ${filteredNumbers.length} numbers with digit sums`,
     });
   }, [filteredNumbers]);
 
@@ -309,8 +397,8 @@ const AdvancedFiltering: React.FC = () => {
     setSearchQuery("");
     setSelectedPattern("mirror");
     setEndingPattern("0000");
-    setMinDigitSum(0);
-    setMaxDigitSum(100);
+    setExactDigitSum("");
+    setSelectedSpecialType("fancy");
     setUseSingleDigitSum(false);
     setLuckyDigits([]);
     setUnluckyDigits([]);
@@ -452,7 +540,7 @@ const AdvancedFiltering: React.FC = () => {
                 </div>
               )}
 
-              {/* Digit Sum filter */}
+              {/* Digit Sum filter - Updated to use exact sum */}
               {activeFilters.includes("sum") && (
                 <div className="p-4 rounded-lg border border-dashed animate-fade-in">
                   <h3 className="text-md font-medium mb-3 flex items-center gap-2">
@@ -471,31 +559,57 @@ const AdvancedFiltering: React.FC = () => {
                       </Label>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="min-digit-sum">Min Sum:</Label>
-                        <Input
-                          id="min-digit-sum"
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={minDigitSum}
-                          onChange={(e) => setMinDigitSum(Number(e.target.value))}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="max-digit-sum">Max Sum:</Label>
-                        <Input
-                          id="max-digit-sum"
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={maxDigitSum}
-                          onChange={(e) => setMaxDigitSum(Number(e.target.value))}
-                          className="mt-1"
-                        />
-                      </div>
+                    <div>
+                      <Label htmlFor="exact-digit-sum">Exact Digit Sum:</Label>
+                      <Input
+                        id="exact-digit-sum"
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="Enter the exact sum to find"
+                        value={exactDigitSum}
+                        onChange={(e) => setExactDigitSum(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Special number types */}
+              {activeFilters.includes("special") && (
+                <div className="p-4 rounded-lg border border-dashed animate-fade-in">
+                  <h3 className="text-md font-medium mb-3 flex items-center gap-2">
+                    <Star className="h-4 w-4" />
+                    Special Number Types
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="special-type">Special Type:</Label>
+                      <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        value={selectedSpecialType}
+                        onValueChange={(value) => {
+                          if (value) setSelectedSpecialType(value);
+                        }}
+                        className="mt-1 flex flex-wrap gap-2"
+                      >
+                        {specialNumberTypes.map((type) => (
+                          <ToggleGroupItem
+                            key={type.id}
+                            value={type.id}
+                            aria-label={type.label}
+                            className="text-xs"
+                          >
+                            {type.label}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    </div>
+                    <div className="bg-muted/40 rounded p-3 text-xs">
+                      <span className="font-medium">Description: </span>
+                      {specialNumberTypes.find((p) => p.id === selectedSpecialType)?.description}
                     </div>
                   </div>
                 </div>
@@ -637,7 +751,7 @@ const AdvancedFiltering: React.FC = () => {
             </div>
           )}
 
-          {/* Results Section */}
+          {/* Results Section - Updated to show digit sums */}
           {filteredNumbers.length > 0 && !isFiltering && (
             <div className="rounded-xl border bg-card shadow-sm p-6 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
@@ -658,17 +772,26 @@ const AdvancedFiltering: React.FC = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[100px]">#</TableHead>
+                      <TableHead className="w-[80px]">#</TableHead>
                       <TableHead>Number</TableHead>
+                      <TableHead className="w-[100px] text-right">Digit Sum</TableHead>
+                      <TableHead className="w-[120px] text-right">Single Digit Sum</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredNumbers.slice(0, 100).map((number, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-mono">{idx + 1}</TableCell>
-                        <TableCell className="font-mono">{number}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredNumbers.slice(0, 100).map((number, idx) => {
+                      const digitSum = calculateDigitSum(number);
+                      const singleDigitSum = calculateSingleDigitSum(number);
+                      
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell className="font-mono">{idx + 1}</TableCell>
+                          <TableCell className="font-mono">{number}</TableCell>
+                          <TableCell className="font-mono text-right">{digitSum}</TableCell>
+                          <TableCell className="font-mono text-right">{singleDigitSum}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
