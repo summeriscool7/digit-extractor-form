@@ -1,11 +1,18 @@
-// Update this page (the content is just a fallback if you fail to update the page)
 
-const Index = () => {
+import React from "react";
+import NumberForm from "@/components/NumberForm";
+
+const Index: React.FC = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-background to-muted/50 px-4 py-16">
+      <div className="w-full max-w-4xl">
+        <NumberForm />
+        
+        <footer className="mt-8 text-center text-sm text-muted-foreground">
+          <p>
+            Number Automation Tool — Designed with precision and elegance
+          </p>
+        </footer>
       </div>
     </div>
   );
